@@ -2,7 +2,7 @@
 
 test:
 	git submodule update --init
-	# git submodule update --remote
+	git submodule update --remote
 	go test -v -cover ./...
 
 fuzz:
