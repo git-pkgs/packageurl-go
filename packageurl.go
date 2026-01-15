@@ -278,11 +278,34 @@ func (q Qualifiers) urlQuery() string {
 		if i > 0 {
 			b.WriteByte('&')
 		}
-		b.WriteString(url.QueryEscape(qq.Key))
+		escapeQualifier(&b, qq.Key)
 		b.WriteByte('=')
-		b.WriteString(url.QueryEscape(qq.Value))
+		escapeQualifier(&b, qq.Value)
 	}
 	return b.String()
+}
+
+// escapeQualifier escapes a qualifier key or value for use in the query string.
+// Per purl spec, ':' is NOT encoded but most other special characters are.
+func escapeQualifier(b *strings.Builder, s string) {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if isQualifierSafe(c) {
+			b.WriteByte(c)
+		} else {
+			b.WriteByte('%')
+			b.WriteByte(hexUpper[c>>4])
+			b.WriteByte(hexUpper[c&0x0f])
+		}
+	}
+}
+
+// isQualifierSafe reports whether c can appear unencoded in a purl qualifier.
+// Per purl spec, ':' is allowed unencoded in qualifier values.
+func isQualifierSafe(c byte) bool {
+	// Standard unreserved characters plus ':'
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+		c == '-' || c == '.' || c == '_' || c == '~' || c == ':'
 }
 
 // QualifiersFromMap constructs a Qualifiers slice from a string map. To get a
@@ -442,7 +465,7 @@ func (p *PackageURL) ToString() string {
 
 	if p.Subpath != "" {
 		b.WriteByte('#')
-		b.WriteString(p.Subpath)
+		escapeSubpath(&b, p.Subpath)
 	}
 
 	return b.String()
@@ -537,7 +560,7 @@ func (p *PackageURL) Normalize() error {
 		Namespace:  typeAdjustNamespace(typ, namespace),
 		Name:       typeAdjustName(typ, p.Name, p.Qualifiers),
 		Version:    typeAdjustVersion(typ, p.Version),
-		Qualifiers: p.Qualifiers,
+		Qualifiers: typeAdjustQualifiers(typ, p.Qualifiers),
 		Subpath:    subpath,
 	}
 	return validCustomRules(*p)
@@ -560,8 +583,7 @@ func escapeToBuilder(b *strings.Builder, s string) {
 	// Check if we need to escape at all
 	needsEscape := false
 	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !isUnreserved(c) {
+		if !isPurlSafe(s[i]) {
 			needsEscape = true
 			break
 		}
@@ -574,10 +596,8 @@ func escapeToBuilder(b *strings.Builder, s string) {
 	// Need to escape - process character by character
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if isUnreserved(c) {
+		if isPurlSafe(c) {
 			b.WriteByte(c)
-		} else if c == ' ' {
-			b.WriteString("%20")
 		} else {
 			b.WriteByte('%')
 			b.WriteByte(hexUpper[c>>4])
@@ -586,10 +606,47 @@ func escapeToBuilder(b *strings.Builder, s string) {
 	}
 }
 
-// isUnreserved reports whether c is an unreserved character as defined by RFC 3986.
-func isUnreserved(c byte) bool {
+// isPurlSafe reports whether c can appear unencoded in a purl path segment.
+// This includes RFC 3986 unreserved characters, most sub-delimiters, and ":"
+// but excludes "@" (purl version separator) and "+" (must be encoded per purl spec).
+func isPurlSafe(c byte) bool {
+	// unreserved: A-Z a-z 0-9 - . _ ~
+	// sub-delims (excluding +): ! $ & ' ( ) * , ; =
+	// also allowed in pchar: :
+	// NOT safe: @ (purl version separator), + (must be %2B), / ? # (URL structure)
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-		c == '-' || c == '.' || c == '_' || c == '~'
+		c == '-' || c == '.' || c == '_' || c == '~' ||
+		c == '!' || c == '$' || c == '&' || c == '\'' ||
+		c == '(' || c == ')' || c == '*' ||
+		c == ',' || c == ';' || c == '=' || c == ':'
+}
+
+// escapeSubpath escapes a subpath, handling segments separated by '/'.
+// In subpaths, '+' must be encoded as %2B (unlike in path segments).
+func escapeSubpath(b *strings.Builder, s string) {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '/' {
+			b.WriteByte('/')
+		} else if isSubpathSafe(c) {
+			b.WriteByte(c)
+		} else {
+			b.WriteByte('%')
+			b.WriteByte(hexUpper[c>>4])
+			b.WriteByte(hexUpper[c&0x0f])
+		}
+	}
+}
+
+// isSubpathSafe reports whether c can appear unencoded in a purl subpath segment.
+// This is similar to isPurlSafe but '+' must be encoded in subpaths.
+func isSubpathSafe(c byte) bool {
+	// Same as isPurlSafe but '+' is NOT safe in subpath
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+		c == '-' || c == '.' || c == '_' || c == '~' ||
+		c == '!' || c == '$' || c == '&' || c == '\'' ||
+		c == '(' || c == ')' || c == '*' ||
+		c == ',' || c == ';' || c == '=' || c == ':'
 }
 
 const hexUpper = "0123456789ABCDEF"
@@ -715,6 +772,37 @@ func typeAdjustVersion(purlType, version string) string {
 	return version
 }
 
+// Make any purl type-specific adjustments to qualifiers.
+func typeAdjustQualifiers(purlType string, qualifiers Qualifiers) Qualifiers {
+	switch purlType {
+	case "bazel":
+		return adjustBazelQualifiers(qualifiers)
+	}
+	return qualifiers
+}
+
+// adjustBazelQualifiers normalizes bazel qualifiers:
+// - Removes default repository_url (https://bcr.bazel.build)
+// - Strips trailing slashes from repository_url
+func adjustBazelQualifiers(qualifiers Qualifiers) Qualifiers {
+	const defaultRegistry = "https://bcr.bazel.build"
+	result := make(Qualifiers, 0, len(qualifiers))
+	for _, q := range qualifiers {
+		if q.Key == "repository_url" {
+			// Strip trailing slash
+			val := strings.TrimSuffix(q.Value, "/")
+			// Skip if it's the default registry
+			if val == defaultRegistry {
+				continue
+			}
+			result = append(result, Qualifier{Key: q.Key, Value: val})
+		} else {
+			result = append(result, q)
+		}
+	}
+	return result
+}
+
 // https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#mlflow
 func adjustMlflowName(name string, qualifiers map[string]string) string {
 	if repo, ok := qualifiers["repository_url"]; ok {
@@ -784,38 +872,39 @@ func validCustomRules(p PackageURL) error {
 	q := p.Qualifiers.Map()
 	switch p.Type {
 	case TypeConan:
-		if p.Namespace != "" {
-			if val, ok := q["channel"]; ok {
-				if val == "" {
-					return errors.New("the qualifier channel must be not empty if namespace is present")
-				}
-			} else {
-				return errors.New("channel qualifier does not exist")
-			}
-		} else {
-			if val, ok := q["channel"]; ok {
-				if val != "" {
-					return errors.New("namespace is required if channel is non empty")
-				}
+		// Conan user and channel qualifiers must appear together.
+		_, hasUser := q["user"]
+		_, hasChannel := q["channel"]
+		if hasUser && !hasChannel {
+			return errors.New("conan purl with 'user' qualifier must also have 'channel' qualifier")
+		}
+		if hasChannel && !hasUser {
+			// channel without user: check if namespace is present to serve as the "user"
+			if p.Namespace == "" {
+				return errors.New("conan purl with 'channel' qualifier requires 'user' qualifier or namespace")
 			}
 		}
+		// If namespace is present but no qualifiers at all, it's ambiguous/invalid.
+		if p.Namespace != "" && len(p.Qualifiers) == 0 {
+			return errors.New("conan purl with namespace requires qualifiers (at minimum 'channel')")
+		}
 	case TypeCpan:
-		if p.Namespace != "" {
-			// The purl refers to a CPAN distribution.
-			publisher := p.Namespace
-			if publisher != strings.ToUpper(publisher) {
-				return errors.New("a cpan distribution namespace must be all uppercase")
-			}
-			distName := p.Name
-			if strings.Contains(distName, "::") {
-				return errors.New("a cpan distribution name must not contain '::'")
-			}
-		} else {
-			// The purl refers to a CPAN module.
-			moduleName := p.Name
-			if strings.Contains(moduleName, "-") {
-				return errors.New("a cpan module name may not contain dashes")
-			}
+		// CPAN namespace (author/publisher) is required.
+		if p.Namespace == "" {
+			return errors.New("a cpan purl must have a namespace (the CPAN ID of the author/publisher)")
+		}
+		// Namespace must be uppercase.
+		if p.Namespace != strings.ToUpper(p.Namespace) {
+			return errors.New("a cpan namespace must be all uppercase")
+		}
+		// Name must not contain '::' (that's module syntax, not distribution).
+		if strings.Contains(p.Name, "::") {
+			return errors.New("a cpan distribution name must not contain '::'")
+		}
+	case TypeJulia:
+		// Julia requires a uuid qualifier.
+		if _, ok := q["uuid"]; !ok {
+			return errors.New("a julia purl must have a 'uuid' qualifier")
 		}
 	case TypeSwift:
 		if p.Namespace == "" {
