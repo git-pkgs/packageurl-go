@@ -119,39 +119,39 @@ var (
 	// KnownTypes is a map of types that are officially supported by the spec.
 	// See https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#known-purl-types
 	KnownTypes = map[string]struct{}{
-		TypeAlpm:        {},
-		TypeApk:         {},
-		TypeBitbucket:   {},
-		TypeBitnami:     {},
-		TypeCargo:       {},
-		TypeCocoapods:   {},
-		TypeComposer:    {},
-		TypeConan:       {},
-		TypeConda:       {},
-		TypeCpan:        {},
-		TypeCran:        {},
-		TypeDebian:      {},
-		TypeDocker:      {},
-		TypeGem:         {},
-		TypeGeneric:     {},
-		TypeGithub:      {},
-		TypeGolang:      {},
-		TypeHackage:     {},
-		TypeHex:         {},
-		TypeHuggingface: {},
-		TypeMaven:       {},
-		TypeMLFlow:      {},
-		TypeNPM:         {},
-		TypeNuget:       {},
-		TypeOCI:         {},
-		TypePub:         {},
-		TypePyPi:        {},
-		TypeQpkg:        {},
-		TypeRPM:         {},
-		TypeSWID:        {},
-		TypeSwift:              {},
-		TypeOTP:                {},
-		TypeVSCodeExtension:   {},
+		TypeAlpm:            {},
+		TypeApk:             {},
+		TypeBitbucket:       {},
+		TypeBitnami:         {},
+		TypeCargo:           {},
+		TypeCocoapods:       {},
+		TypeComposer:        {},
+		TypeConan:           {},
+		TypeConda:           {},
+		TypeCpan:            {},
+		TypeCran:            {},
+		TypeDebian:          {},
+		TypeDocker:          {},
+		TypeGem:             {},
+		TypeGeneric:         {},
+		TypeGithub:          {},
+		TypeGolang:          {},
+		TypeHackage:         {},
+		TypeHex:             {},
+		TypeHuggingface:     {},
+		TypeMaven:           {},
+		TypeMLFlow:          {},
+		TypeNPM:             {},
+		TypeNuget:           {},
+		TypeOCI:             {},
+		TypePub:             {},
+		TypePyPi:            {},
+		TypeQpkg:            {},
+		TypeRPM:             {},
+		TypeSWID:            {},
+		TypeSwift:           {},
+		TypeOTP:             {},
+		TypeVSCodeExtension: {},
 	}
 
 	TypeApache      = "apache"
@@ -779,7 +779,7 @@ func typeAdjustVersion(purlType, version string) string {
 }
 
 // Make any purl type-specific adjustments to qualifiers.
-func typeAdjustQualifiers(purlType string, qualifiers Qualifiers) Qualifiers {
+func typeAdjustQualifiers(_ string, qualifiers Qualifiers) Qualifiers {
 	return qualifiers
 }
 

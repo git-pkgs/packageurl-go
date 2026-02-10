@@ -6,12 +6,12 @@ import (
 
 // Sample purls of varying complexity
 var (
-	simplePurl       = "pkg:npm/lodash@4.17.21"
-	namespacePurl    = "pkg:maven/org.apache.commons/commons-lang3@3.12.0"
-	qualifiersPurl   = "pkg:npm/%40angular/core@16.0.0?repository_url=https://registry.npmjs.org"
-	complexPurl      = "pkg:rpm/fedora/curl@7.50.3-1.fc25?arch=i386&distro=fedora-25&repository_url=http://example.com"
-	subpathPurl      = "pkg:github/package-url/purl-spec@244fd47e07d1004f0aed9c#src/main/java"
-	fullPurl         = "pkg:deb/debian/dpkg@1.19.0.4?arch=amd64&distro=stretch&repository_url=http://deb.debian.org#subpath/to/file"
+	simplePurl     = "pkg:npm/lodash@4.17.21"
+	namespacePurl  = "pkg:maven/org.apache.commons/commons-lang3@3.12.0"
+	qualifiersPurl = "pkg:npm/%40angular/core@16.0.0?repository_url=https://registry.npmjs.org"
+	complexPurl    = "pkg:rpm/fedora/curl@7.50.3-1.fc25?arch=i386&distro=fedora-25&repository_url=http://example.com"
+	subpathPurl    = "pkg:github/package-url/purl-spec@244fd47e07d1004f0aed9c#src/main/java"
+	fullPurl       = "pkg:deb/debian/dpkg@1.19.0.4?arch=amd64&distro=stretch&repository_url=http://deb.debian.org#subpath/to/file"
 )
 
 // Pre-parsed PackageURL structs for ToString benchmarks
@@ -83,6 +83,12 @@ func BenchmarkFromString_Qualifiers(b *testing.B) {
 func BenchmarkFromString_Complex(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = FromString(complexPurl)
+	}
+}
+
+func BenchmarkFromString_Subpath(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _ = FromString(subpathPurl)
 	}
 }
 
