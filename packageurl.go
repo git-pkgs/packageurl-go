@@ -111,6 +111,10 @@ var (
 	TypeSWID = "swid"
 	// TypeSwift is pkg:swift purl
 	TypeSwift = "swift"
+	// TypeOTP is a pkg:otp purl.
+	TypeOTP = "otp"
+	// TypeVSCodeExtension is a pkg:vscode-extension purl.
+	TypeVSCodeExtension = "vscode-extension"
 
 	// KnownTypes is a map of types that are officially supported by the spec.
 	// See https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#known-purl-types
@@ -145,7 +149,9 @@ var (
 		TypeQpkg:        {},
 		TypeRPM:         {},
 		TypeSWID:        {},
-		TypeSwift:       {},
+		TypeSwift:              {},
+		TypeOTP:                {},
+		TypeVSCodeExtension:   {},
 	}
 
 	TypeApache      = "apache"
@@ -774,33 +780,7 @@ func typeAdjustVersion(purlType, version string) string {
 
 // Make any purl type-specific adjustments to qualifiers.
 func typeAdjustQualifiers(purlType string, qualifiers Qualifiers) Qualifiers {
-	switch purlType {
-	case "bazel":
-		return adjustBazelQualifiers(qualifiers)
-	}
 	return qualifiers
-}
-
-// adjustBazelQualifiers normalizes bazel qualifiers:
-// - Removes default repository_url (https://bcr.bazel.build)
-// - Strips trailing slashes from repository_url
-func adjustBazelQualifiers(qualifiers Qualifiers) Qualifiers {
-	const defaultRegistry = "https://bcr.bazel.build"
-	result := make(Qualifiers, 0, len(qualifiers))
-	for _, q := range qualifiers {
-		if q.Key == "repository_url" {
-			// Strip trailing slash
-			val := strings.TrimSuffix(q.Value, "/")
-			// Skip if it's the default registry
-			if val == defaultRegistry {
-				continue
-			}
-			result = append(result, Qualifier{Key: q.Key, Value: val})
-		} else {
-			result = append(result, q)
-		}
-	}
-	return result
 }
 
 // https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#mlflow
@@ -916,6 +896,14 @@ func validCustomRules(p PackageURL) error {
 	case TypeCran:
 		if p.Version == "" {
 			return errors.New("version is required")
+		}
+	case TypeOTP:
+		if p.Namespace != "" {
+			return errors.New("namespace is not allowed for otp purls")
+		}
+	case TypeVSCodeExtension:
+		if p.Namespace == "" {
+			return errors.New("namespace is required for vscode-extension purls")
 		}
 	}
 	return nil
