@@ -111,41 +111,47 @@ var (
 	TypeSWID = "swid"
 	// TypeSwift is pkg:swift purl
 	TypeSwift = "swift"
+	// TypeOTP is a pkg:otp purl.
+	TypeOTP = "otp"
+	// TypeVSCodeExtension is a pkg:vscode-extension purl.
+	TypeVSCodeExtension = "vscode-extension"
 
 	// KnownTypes is a map of types that are officially supported by the spec.
 	// See https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#known-purl-types
 	KnownTypes = map[string]struct{}{
-		TypeAlpm:        {},
-		TypeApk:         {},
-		TypeBitbucket:   {},
-		TypeBitnami:     {},
-		TypeCargo:       {},
-		TypeCocoapods:   {},
-		TypeComposer:    {},
-		TypeConan:       {},
-		TypeConda:       {},
-		TypeCpan:        {},
-		TypeCran:        {},
-		TypeDebian:      {},
-		TypeDocker:      {},
-		TypeGem:         {},
-		TypeGeneric:     {},
-		TypeGithub:      {},
-		TypeGolang:      {},
-		TypeHackage:     {},
-		TypeHex:         {},
-		TypeHuggingface: {},
-		TypeMaven:       {},
-		TypeMLFlow:      {},
-		TypeNPM:         {},
-		TypeNuget:       {},
-		TypeOCI:         {},
-		TypePub:         {},
-		TypePyPi:        {},
-		TypeQpkg:        {},
-		TypeRPM:         {},
-		TypeSWID:        {},
-		TypeSwift:       {},
+		TypeAlpm:            {},
+		TypeApk:             {},
+		TypeBitbucket:       {},
+		TypeBitnami:         {},
+		TypeCargo:           {},
+		TypeCocoapods:       {},
+		TypeComposer:        {},
+		TypeConan:           {},
+		TypeConda:           {},
+		TypeCpan:            {},
+		TypeCran:            {},
+		TypeDebian:          {},
+		TypeDocker:          {},
+		TypeGem:             {},
+		TypeGeneric:         {},
+		TypeGithub:          {},
+		TypeGolang:          {},
+		TypeHackage:         {},
+		TypeHex:             {},
+		TypeHuggingface:     {},
+		TypeMaven:           {},
+		TypeMLFlow:          {},
+		TypeNPM:             {},
+		TypeNuget:           {},
+		TypeOCI:             {},
+		TypePub:             {},
+		TypePyPi:            {},
+		TypeQpkg:            {},
+		TypeRPM:             {},
+		TypeSWID:            {},
+		TypeSwift:           {},
+		TypeOTP:             {},
+		TypeVSCodeExtension: {},
 	}
 
 	TypeApache      = "apache"
@@ -773,34 +779,8 @@ func typeAdjustVersion(purlType, version string) string {
 }
 
 // Make any purl type-specific adjustments to qualifiers.
-func typeAdjustQualifiers(purlType string, qualifiers Qualifiers) Qualifiers {
-	switch purlType {
-	case "bazel":
-		return adjustBazelQualifiers(qualifiers)
-	}
+func typeAdjustQualifiers(_ string, qualifiers Qualifiers) Qualifiers {
 	return qualifiers
-}
-
-// adjustBazelQualifiers normalizes bazel qualifiers:
-// - Removes default repository_url (https://bcr.bazel.build)
-// - Strips trailing slashes from repository_url
-func adjustBazelQualifiers(qualifiers Qualifiers) Qualifiers {
-	const defaultRegistry = "https://bcr.bazel.build"
-	result := make(Qualifiers, 0, len(qualifiers))
-	for _, q := range qualifiers {
-		if q.Key == "repository_url" {
-			// Strip trailing slash
-			val := strings.TrimSuffix(q.Value, "/")
-			// Skip if it's the default registry
-			if val == defaultRegistry {
-				continue
-			}
-			result = append(result, Qualifier{Key: q.Key, Value: val})
-		} else {
-			result = append(result, q)
-		}
-	}
-	return result
 }
 
 // https://github.com/package-url/purl-spec/blob/master/PURL-TYPES.rst#mlflow
@@ -916,6 +896,14 @@ func validCustomRules(p PackageURL) error {
 	case TypeCran:
 		if p.Version == "" {
 			return errors.New("version is required")
+		}
+	case TypeOTP:
+		if p.Namespace != "" {
+			return errors.New("namespace is not allowed for otp purls")
+		}
+	case TypeVSCodeExtension:
+		if p.Namespace == "" {
+			return errors.New("namespace is required for vscode-extension purls")
 		}
 	}
 	return nil
