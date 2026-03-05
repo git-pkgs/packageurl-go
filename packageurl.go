@@ -696,9 +696,6 @@ func validCustomRules(p PackageURL) error {
 		if p.Namespace == "" {
 			return errors.New("namespace is required")
 		}
-		if p.Version == "" {
-			return errors.New("version is required")
-		}
 	case TypeVSCodeExtension:
 		if p.Namespace == "" {
 			return errors.New("namespace is required")
